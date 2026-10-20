@@ -1,0 +1,11 @@
+run,backbone,source_share_exponent,loss_mask,held_out_source,epochs,challenge_avg_last_epoch,challenge_avg_best_epoch,best_epoch
+ho_peta_base8,ConvNeXt-Tiny,0,yes,PETA,8,0.7384,0.7429,5
+ho_peta_bal05,ConvNeXt-Tiny,0.5,yes,PETA,8,0.7474,0.7484,6
+ho_peta_bal10,ConvNeXt-Tiny,1.0,yes,PETA,8,0.7453,0.7486,3
+ho_peta_nomask,ConvNeXt-Tiny,0,no,PETA,8,0.7365,0.7367,6
+ho_peta_r50_bal05,ResNet-50,0.5,yes,PETA,8,0.7342,0.7342,8
+ho_peta_clip_a (lr 3e-5),CLIP ViT-B/16,0.5,yes,PETA,5,0.7857,0.7859,3
+ho_peta_clip_b (lr 1e-5),CLIP ViT-B/16,0.5,yes,PETA,5,0.7876,0.7880,3
+ho_market_base8,ConvNeXt-Tiny,0,yes,Market1501,8,0.8083,0.8093,6
+ho_market_bal05,ConvNeXt-Tiny,0.5,yes,Market1501,8,0.8105,0.8133,4
+ho_market_bal10,ConvNeXt-Tiny,1.0,yes,Market1501,8,0.8130,0.8142,6
