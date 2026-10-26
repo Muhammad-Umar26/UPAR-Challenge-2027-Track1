@@ -80,6 +80,16 @@ python upar_train.py --name final_clip_b_s1 --final --arch clip_b16 --balance 0.
    (not the folder). The packaging cell (Part 7 of the notebook) also runs `run.py` on 500 validation images without
    `open_clip` or `timm` and compares the result with the training pipeline before you upload.
 
+## Trained weights
+
+The exact zip uploaded as Codabench submission 1010210 (two CLIP ViT-L/14 models as int8 state_dicts, plus `run.py`,
+`metadata.yaml`, `upar_clipvit.py` and the config; 511 MB):
+https://drive.google.com/file/d/1MR8SQ8NjzFUFPdu3SLGNIRtpjlprsfCp/view?usp=drive_link
+
+To reproduce the leaderboard result without training, upload this zip to Codabench as it is. To use the weights
+locally, unzip it and call `run.py` (`load_model()`, then `predict_batch()`); it needs only torch, torchvision, numpy and
+Pillow. `fact_sheet/` holds the organisers' fact sheet for this entry (LaTeX source, figure and PDF).
+
 ## Rules we followed
 
 - Only the organisers' training and validation data were used for training. No other attribute data.
