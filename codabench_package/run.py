@@ -1,5 +1,5 @@
-"""UPAR 2027 Track 1 submission: ensemble of one or more models (CLIP ViT-B/16 via the shipped upar_clipvit.py, or
-torchvision), logits averaged, optional horizontal-flip TTA with a time guard.
+"""UPAR 2027 Track 1 submission: weighted ensemble of one or more models (CLIP ViT via the shipped upar_clipvit.py,
+or torchvision), logits averaged, optional horizontal-flip TTA with a time guard.
 
 Only torch, torchvision, numpy and Pillow are used. Nothing here looks at sample['image'] or at the directory of
 sample['image_path']: the same models and thresholds are used for every image.
@@ -32,8 +32,10 @@ PAD_RGB = (124, 116, 104)  # must equal upar_preproc.PAD_RGB used to build the t
 MEAN, STD = (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
 _S = {}
 
+
 def _log(msg):
     print(f"[run.py] {msg}", flush=True)
+
 
 def letterbox(img, H, W, mode="pad"):
     """Identical to upar_preproc.letterbox (training cache): keep aspect ratio, centre on a mean-coloured canvas."""
@@ -50,6 +52,7 @@ def letterbox(img, H, W, mode="pad"):
     canvas.paste(img, ((W - nw) // 2, (H - nh) // 2))
     return np.asarray(canvas, dtype=np.uint8)
 
+
 def _build(mcfg, n):
     arch = mcfg["arch"]
     if arch == "convnext_tiny":
@@ -60,12 +63,29 @@ def _build(mcfg, n):
         m = torchvision.models.resnet50(weights=None)
         m.fc = nn.Linear(m.fc.in_features, n)
         return m
-    if arch == "clip_b16":
+    if arch.startswith("clip"):
         if HERE not in sys.path:
             sys.path.insert(0, HERE)
-        from src.upar_clipvit import ClipPAR            # shipped next to run.py; plain torch, no open_clip
-        return ClipPAR(tuple(mcfg["in_size"]), mcfg["act"], n)
+        from upar_clipvit import ClipPAR            # shipped next to run.py; plain torch, no open_clip
+        dims = {k: mcfg[k] for k in ("patch", "width", "layers", "heads", "out_dim") if k in mcfg}
+        return ClipPAR(tuple(mcfg["in_size"]), mcfg["act"], n, **dims)
     raise ValueError(arch)
+
+
+def _dequant(sd):
+    """int8 weights are stored as <name>::q (int8) plus <name>::s (one fp16 scale per row)."""
+    out = {}
+    for k, v in sd.items():
+        if k.endswith("::s"):
+            continue
+        if k.endswith("::q"):
+            base = k[:-3]
+            s = sd[base + "::s"].float()
+            out[base] = (v.float().reshape(v.shape[0], -1) * s.reshape(-1, 1)).reshape(v.shape)
+        else:
+            out[k] = v
+    return out
+
 
 def load_model():
     t0 = time.time()
@@ -79,13 +99,14 @@ def load_model():
     for mcfg in members:
         model = _build(mcfg, n)
         sd = torch.load(os.path.join(ASSETS, mcfg["file"]), map_location="cpu", weights_only=True)
-        model.load_state_dict(sd)
+        model.load_state_dict(_dequant(sd))
+        del sd
         model = model.eval().to(dev)
         if dev == "cuda":
             model = model.to(memory_format=torch.channels_last)
         mean = torch.tensor(mcfg.get("mean", MEAN), device=dev).view(1, 3, 1, 1)
         std = torch.tensor(mcfg.get("std", STD), device=dev).view(1, 3, 1, 1)
-        models.append((model, mean, std))
+        models.append((model, mean, std, float(mcfg.get("weight", 1.0))))
     if dev == "cuda":
         torch.backends.cudnn.benchmark = True
 
@@ -111,12 +132,14 @@ def load_model():
          f"TTA: {_S['tta']}; load {time.time() - t0:.1f}s")
     atexit.register(_summary)
 
+
 def _summary():
     if _S.get("t_first") is None:
         return
     dt = time.time() - _S["t_first"]
     _log(f"DONE {_S['n_done']} images in {dt:.1f}s ({_S['n_done'] / max(dt, 1e-9):.0f} img/s), "
          f"unreadable: {_S['n_fail']}, TTA at end: {_S['tta']}")
+
 
 def _load(path):
     try:
@@ -125,23 +148,26 @@ def _load(path):
     except Exception as e:
         return e
 
+
 @torch.no_grad()
 def _forward(x_uint8):
     dev = _S["dev"]
     x0 = x_uint8.to(dev).permute(0, 3, 1, 2).float().div_(255)
-    z = 0.0
+    z, wsum = 0.0, 0.0
     with torch.autocast(dev, dtype=torch.float16, enabled=(dev == "cuda")):
-        for model, mean, std in _S["models"]:
+        for model, mean, std, w in _S["models"]:
             x = (x0 - mean) / std
             if dev == "cuda":
                 x = x.contiguous(memory_format=torch.channels_last)
             zm = model(x).float()
             if _S["tta"]:
                 zm = (zm + model(x.flip(3)).float()) / 2
-            z = z + zm
-    z = z / len(_S["models"])
+            z = z + w * zm
+            wsum += w
+    z = z / wsum
     p = torch.sigmoid(z - _S["bias"]).clamp_(1e-6, 1 - 1e-6)       # p > 0.5  <=>  sigmoid(z) > t_k
     return p.cpu().numpy().astype(np.float64)
+
 
 def _columns(names):
     key = tuple(names)
@@ -150,6 +176,7 @@ def _columns(names):
         if -1 in _S["cols"][key]:
             _log(f"unknown attribute names (answered with 0.0): {[n for n in names if n not in _S['pos']]}")
     return _S["cols"][key]
+
 
 def _time_guard():
     now = time.time()
@@ -162,6 +189,7 @@ def _time_guard():
         _log(f"TTA disabled: {rate:.0f} img/s projects {projected:.0f}s for {N_ASSUMED} images (budget {TIME_BUDGET_S:.0f}s)")
     if _S["n_batches"] % 50 == 0:
         _log(f"{_S['n_done']} images, {rate:.0f} img/s, projected total {projected:.0f}s, TTA {_S['tta']}")
+
 
 def predict_batch(samples):
     if "models" not in _S:

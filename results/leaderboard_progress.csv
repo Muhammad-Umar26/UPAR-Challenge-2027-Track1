@@ -1,5 +1,7 @@
-submission,description,mA,Instance_F1,Challenge_Avg,rank_when_graded
+﻿submission,description,mA,Instance_F1,Challenge_Avg,rank_when_graded
 1,Sample baseline (training-set attribute prior; ignores the image),0.5000,0.4910,0.4955,70
 2,ConvNeXt-Tiny trained on train+val (single model),0.7302,0.7274,0.7288,60
 3,CLIP ViT-B/16 trained on train+val (single model),0.7693,0.7642,0.7668,44
-4,Three CLIP ViT-B/16 models averaged (final),0.7676,0.7713,0.7694,41
+4,Three CLIP ViT-B/16 models averaged,0.7676,0.7713,0.7694,41
+5,CLIP ViT-L/14 trained on train+val (single model; best single model),0.7802,0.7774,0.7788,n/a
+6,Two CLIP ViT-L/14 models averaged (final; last allowed submission),0.7754,0.7792,0.7773,42

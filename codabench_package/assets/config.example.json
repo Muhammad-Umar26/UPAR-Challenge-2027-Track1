@@ -1,74 +1,67 @@
-{
-  "H": 192,
-  "W": 96,
-  "mode": "pad",
-  "attribute_names": [
-    "Age-Young",
-    "Age-Adult",
-    "Age-Old",
-    "Gender-Female",
-    "...",
-    "(the 40 names in the order of data/annotations/task1/*/gt.csv)",
-    "...",
-    "Accessory-Hat"
-  ],
-  "members": [
-    {
-      "arch": "clip_b16",
-      "file": "model_0.pth",
-      "in_size": [
-        224,
-        112
-      ],
-      "act": "quickgelu",
-      "mean": [
-        0.48145466,
-        0.4578275,
-        0.40821073
-      ],
-      "std": [
-        0.26862954,
-        0.26130258,
-        0.27577711
-      ]
-    },
-    {
-      "arch": "clip_b16",
-      "file": "model_1.pth",
-      "in_size": [
-        224,
-        112
-      ],
-      "act": "quickgelu",
-      "mean": [
-        0.48145466,
-        0.4578275,
-        0.40821073
-      ],
-      "std": [
-        0.26862954,
-        0.26130258,
-        0.27577711
-      ]
-    },
-    {
-      "arch": "clip_b16",
-      "file": "model_2.pth",
-      "in_size": [
-        224,
-        112
-      ],
-      "act": "quickgelu",
-      "mean": [
-        0.48145466,
-        0.4578275,
-        0.40821073
-      ],
-      "std": [
-        0.26862954,
-        0.26130258,
-        0.27577711
-      ]
-    }
-  ]
+﻿{
+    "H":  192,
+    "W":  96,
+    "mode":  "pad",
+    "attribute_names":  [
+                            "Age-Young",
+                            "Age-Adult",
+                            "Age-Old",
+                            "Gender-Female",
+                            "...",
+                            "(the 40 names in the order of data/annotations/task1/*/gt.csv)",
+                            "...",
+                            "Accessory-Hat"
+                        ],
+    "members":  [
+                    {
+                        "arch":  "clip_l14",
+                        "file":  "model_0.pth",
+                        "weight":  1,
+                        "in_size":  [
+                                        196,
+                                        98
+                                    ],
+                        "act":  "quickgelu",
+                        "patch":  14,
+                        "width":  1024,
+                        "layers":  24,
+                        "heads":  16,
+                        "out_dim":  768,
+                        "mean":  [
+                                     0.48145466,
+                                     0.4578275,
+                                     0.40821073
+                                 ],
+                        "std":  [
+                                    0.26862954,
+                                    0.26130258,
+                                    0.27577711
+                                ]
+                    },
+                    {
+                        "arch":  "clip_l14",
+                        "file":  "model_1.pth",
+                        "weight":  1,
+                        "in_size":  [
+                                        196,
+                                        98
+                                    ],
+                        "act":  "quickgelu",
+                        "patch":  14,
+                        "width":  1024,
+                        "layers":  24,
+                        "heads":  16,
+                        "out_dim":  768,
+                        "mean":  [
+                                     0.48145466,
+                                     0.4578275,
+                                     0.40821073
+                                 ],
+                        "std":  [
+                                    0.26862954,
+                                    0.26130258,
+                                    0.27577711
+                                ]
+                    }
+                ]
 }

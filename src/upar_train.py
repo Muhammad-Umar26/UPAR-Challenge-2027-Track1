@@ -23,16 +23,18 @@ from upar_eval import evaluate        # noqa: E402
 SOURCES = ['Market1501', 'PA100k', 'PETA']
 SRC_ID = {s: i for i, s in enumerate(SOURCES)}
 CFG_KEYS = ['arch', 'epochs', 'batch_size', 'lr', 'balance', 'pw_cap', 'holdout', 'final', 'no_mask',
-            'debug_steps', 'warmup_epochs', 'llrd', 'lr_head']
+            'debug_steps', 'warmup_epochs', 'llrd', 'lr_head', 'clip_size', 'freeze_epochs']
 
 def get_args(argv=None):
     p = argparse.ArgumentParser()
     p.add_argument('--name', default='run')
     p.add_argument('--cache-dir', default='/content/cache/h192w96_pad')
     p.add_argument('--runs-dir', default='/content/drive/MyDrive/upar/runs')
-    p.add_argument('--arch', default='convnext_tiny', choices=['convnext_tiny', 'resnet50', 'clip_b16'])
+    p.add_argument('--arch', default='convnext_tiny', choices=['convnext_tiny', 'resnet50', 'clip_b16', 'clip_l14'])
     p.add_argument('--llrd', type=float, default=0.75, help='layer-wise lr decay (clip_b16 only)')
-    p.add_argument('--lr-head', type=float, default=1e-3, help='lr of the new head (clip_b16 only)')
+    p.add_argument('--lr-head', type=float, default=1e-3, help='lr of the new head (CLIP only)')
+    p.add_argument('--clip-size', default=None, help='CLIP input HxW, e.g. 196x98 (default: per model)')
+    p.add_argument('--freeze-epochs', type=int, default=0, help='train only the head for the first N epochs (LP-FT)')
     p.add_argument('--epochs', type=int, default=20)
     p.add_argument('--batch-size', type=int, default=128)
     p.add_argument('--lr', type=float, default=2e-4)
@@ -157,7 +159,7 @@ def source_masks(labels, src, use_mask):
     return M
 
 # ----------------------------------------------------------------------------- model / optim
-def build_model(arch):
+def build_model(arch, clip_size=None):
     if arch == 'convnext_tiny':
         m = torchvision.models.convnext_tiny(weights=torchvision.models.ConvNeXt_Tiny_Weights.IMAGENET1K_V1)
         m.classifier[2] = nn.Linear(m.classifier[2].in_features, 40)
@@ -168,7 +170,8 @@ def build_model(arch):
         head = m.fc
     else:
         from upar_clipvit import build_clip_par
-        m = build_clip_par(pretrained=True)
+        in_size = tuple(int(v) for v in clip_size.split('x')) if clip_size else None
+        m = build_clip_par(pretrained=True, spec=arch, in_size=in_size)
         head = m.head
     return m, head
 
@@ -322,17 +325,17 @@ def main():
     print('pos_weight: min %.1f max %.1f, %d attributes at the cap %.0f' %
           (pw.min(), pw.max(), int((pw >= args.pw_cap - 1e-9).sum()), args.pw_cap), flush=True)
 
-    model, head = build_model(args.arch)
+    model, head = build_model(args.arch, args.clip_size)
     with torch.no_grad():
         nn.init.normal_(head.weight, std=0.01)
         head.bias.copy_(torch.tensor(np.log(p0 / (1 - p0)), dtype=torch.float32))
     model = model.cuda().to(memory_format=torch.channels_last)
-    opt = (make_optimizer_clip(model, args.lr, args.lr_head, args.wd, args.llrd) if args.arch == 'clip_b16'
+    opt = (make_optimizer_clip(model, args.lr, args.lr_head, args.wd, args.llrd) if args.arch.startswith('clip')
            else make_optimizer(model, args.lr, args.wd))
     sched = make_sched(opt, total_steps, warm, args.min_lr / args.lr)
     scaler = torch.amp.GradScaler('cuda')
     aug = GPUAugment(device='cuda')
-    if args.arch == 'clip_b16':                     # CLIP's own normalisation
+    if args.arch.startswith('clip'):                     # CLIP's own normalisation
         from upar_clipvit import CLIP_MEAN, CLIP_STD
         aug.mean = torch.tensor(CLIP_MEAN, device='cuda').view(1, 3, 1, 1)
         aug.std = torch.tensor(CLIP_STD, device='cuda').view(1, 3, 1, 1)
@@ -405,6 +408,12 @@ def main():
     for epoch in range(start_epoch, args.epochs):
         t0 = time.time()
         torch.cuda.reset_peak_memory_stats()
+        frozen = epoch < args.freeze_epochs              # LP-FT: head only for the first epochs
+        for n_, p_ in model.named_parameters():
+            if not n_.startswith('head.'):
+                p_.requires_grad_(not frozen)
+        if frozen:
+            print(f'epoch {epoch + 1}: backbone frozen, training the head only', flush=True)
         order = sampler_rng.choice(rows, size=steps_per_epoch * B, replace=True, p=w)
         loss, _ = run_epoch(model, Loader(parts_train, order, B), aug, opt, sched, scaler, M_t, pw_t, args.grad_clip)
         torch.cuda.synchronize()
