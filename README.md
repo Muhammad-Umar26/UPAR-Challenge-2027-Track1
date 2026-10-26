@@ -60,8 +60,8 @@ The scripts assume the Colab layout `/content/drive/MyDrive/upar/...` (code in `
 3. Install `open_clip_torch` (training only) and train. The two models of the final submission (L/14, 196x98 input):
 
 ```
-python upar_train.py --name final_l14_a    --final --arch clip_l14 --clip-size 196x98 --batch-size 48 --balance 0.5 --epochs 3 --warmup-epochs 0.5 --lr 1e-5 --llrd 0.85 --lr-head 1e-3
-python upar_train.py --name final_l14_lpft --final --arch clip_l14 --clip-size 196x98 --batch-size 48 --balance 0.5 --epochs 4 --warmup-epochs 0.5 --lr 1e-5 --llrd 0.85 --lr-head 1e-3 --freeze-epochs 1
+python upar_train.py --name final_l14_a    --final --arch clip_l14 --clip-size 196x98 --batch-size 64 --balance 0.5 --epochs 3 --warmup-epochs 0.5 --lr 1e-5 --llrd 0.85 --lr-head 1e-3
+python upar_train.py --name final_l14_lpft --final --arch clip_l14 --clip-size 196x98 --batch-size 64 --balance 0.5 --epochs 4 --warmup-epochs 0.5 --lr 1e-5 --llrd 0.85 --lr-head 1e-3 --freeze-epochs 1
 ```
 
    Each takes about 2 to 2.5 hours on a T4 (about 37 minutes per epoch, 12.9 GB peak memory). The earlier B/16
